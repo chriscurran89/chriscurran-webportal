@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_content %}
+<div class="row">
+
+    <div class="col-md-4">
+        <h5>Title:</h5>
+        <p>{{ publication.title }}</p>
+        <h6>Publication Date:</h6>
+        <p>{{ publication.publication_date }}</p>
+        <h6>DOI:</h6>
+        <a href="{{ publication.weblink }}">{{ publication.weblink }}</a>
+        <p>{{ publication.publication_date }}</p>
+        <br>
+        <h6>Abstract:</h6>
+        <p>{{ publication.abstract }}</p>
+        <br>
+        <h6>My role:</h6>
+        <p>{{ publication.role }}</p>
+    </div>
+
+</div>
+{% endblock %}
