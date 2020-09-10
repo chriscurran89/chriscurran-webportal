@@ -1,0 +1,564 @@
+---
+title: 'The Professional Association of National Basketball, Tracker (Daily Snapshot)'
+author: 'Chris Curran'
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: flatly
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+```{r rsetup, echo=FALSE, include=TRUE}
+# Namespace requirements
+require(knitr)
+require(methods)
+source("~/Documents/chris-curran-portfolio/rprojects/rmarkdown_nba_daily/bball_utils.R")
+```
+
+```{r data_process, echo=FALSE, include=TRUE}
+
+# Daily counts (total players, total points, total assists, total rebounds, total steals, total blocks, total 3 pt made, etc.)
+# Data In
+
+
+# Aggregate by player
+
+# Winning Teams - 1 v 1
+# Re-scale metrics (do not include total pts), find the metric with the biggest
+# differential between winner and loser, highlight that metric for that team
+
+# Winning Teams - winners v losers
+# Re-scale metrics (do not include total pts), fit model, with outcome as
+# win or loss, and re-scaled metrics (excluding total points) as predictors.
+# Sort by biggest to smallest predictor, with effect size for scale (will have to return transformed estimates to scale).
+
+# Lagged Team Activity
+# Win totals over the past 7 days, 15 days, 30 days.For each team, within each time segmentation, use win/loss as outcome, scaled metrics for predictor (excluding points), and find which metric, along each time scale, is the most predictive of a victory for that team. The rationale here is that different teams excel at different things.
+
+```
+  
+# Introduction
+
+PatientsLikeMe has a vibrant Type II Diabetes community, with `r t2d_plm_actives_90days` active members in the past 90-days. The Level2 Tailored Community on PLM provides the community experience platform to support the Level2 program which ultimately aims to reverse Type II Diabetes. This report provides a descriptive overview of participant characterstics and a summary of patient participation, health status and treatment evaluations for microinterventions at an aggregate level. The aim is to provide insight into any needed action steps with patient engagement as part of ongoing monitoring as well as to identify patterns of interest for further analysis.
+  
+# Cohort Overview Level2 Tailored Community
+
+Data is current to `r format(fresh_date, '%Y-%m-%d')`
+  
+This section provides an overview of member participation in the L2 community including:
+
+  * Level2 members: The total number of participants who have registered to be part of the tailored community on PLM
+  * Level2 90-day Active users: the number of participants who with at least one logged in session. 
+  * Level2 new users: The number of new members who have registered to be part of the tailored community on PLM within the past 90-days 
+
+A more detailed breakdown of member participation and engagement in the L2 tailored community is provided in the Patient Engagement Summary section below. 
+ 
+```{r overview, fig.width = 11, fig.align = "center", echo=FALSE, results='asis'}
+overview <- data.frame("subset"= character(3), "freq" = integer(3), stringsAsFactors = FALSE)
+# Level2
+level2 <- as.data.frame(table(cohort_view$tc_name))
+overview$subset[1] <- "Level2:\nMembers"
+overview$freq[1] <- level2$Freq[which(level2$Var1 == 'Level2')]
+# Level2 - 90-day actives
+actives <- as.data.frame(table(cohort_view$active_last90days[which(cohort_view$tc_name == 'Level2')]))
+overview$subset[2] <- "Level2:\n90-day\nActive Users"
+overview$freq[2] <- actives$Freq[which(actives$Var1 == TRUE)]
+# Level2 - 90-day new signups
+signups <- as.data.frame(table(cohort_view$signedup_last90days[which(cohort_view$tc_name == 'Level2')]))
+overview$subset[3] <- "Level2:\nNew Users\n(90-days)"
+overview$freq[3] <- signups$Freq[which(signups$Var1 == TRUE)]
+
+# set order
+overview$subset <- factor(overview$subset,
+                          levels = c('Level2:\nMembers','Level2:\n90-day\nActive Users','Level2:\nNew Users\n(90-days)'))
+
+# Plot
+suppressWarnings(
+  ggplot2::ggplot(data = overview, aes(x=subset, y = freq, fill = subset)) +
+    geom_bar(stat = 'identity') +
+    geom_text(aes(label=freq), nudge_y = 1) +
+    xlab(NULL) +
+    ylab("Unique Users") +
+    theme(legend.position = "none",
+          text = element_text(size=20),
+          plot.subtitle = element_text(size = 10),
+          axis.text.x = element_text(size = 10)) +
+    scale_y_continuous(breaks=seq(0, max(overview$freq+1), 5)) +
+    ggtitle("Key Subsets") +
+    labs(subtitle = paste0("Date: ", fresh_date))
+)
+```
+  
+## Demographic
+
+Figures in this section provide a demographic profile of members participating in the L2 community as well as sub-group breakdowns for age distribution by select demographic characteristics
+
+```{r characteristics, fig.width = 11, fig.align = "center", echo=FALSE, results='asis', warning=FALSE}
+# Demographics
+level2_cohortview <- cohort_view[which(cohort_view$tc_name == 'Level2'),]
+
+# # # Age by sex
+sex <-
+  ggplot(data = level2_cohortview[which(level2_cohortview$sex != ""),], aes(x=age, fill = sex)) +
+    geom_histogram(bins = 50) +
+    facet_wrap(~sex) +
+    xlab("Age") +
+    ylab("Unique Users") +
+    theme(legend.position = "none",
+          text = element_text(size=20),
+          plot.subtitle = element_text(size = 10),
+          axis.text.x = element_text(size = 10)) +
+    scale_y_continuous(breaks=c(seq(0, 5, 1))) +
+    scale_x_continuous(breaks=c(seq(0, 90, 5))) +
+    ggtitle("Age Distribution by Sex") +
+    labs(subtitle = paste0("Date: ", fresh_date))
+
+# # # Age by race
+level2_cohortview$race_code <- factor(level2_cohortview$race_code,
+                                  levels = c('white','black','asian','mixed_race','native_american','hawaiian'))
+
+race <- 
+  ggplot(data = level2_cohortview[which(level2_cohortview$race_code != "" & level2_cohortview$race_code != "no_answer"),],
+         aes(x=age, fill = race_code)) +
+         geom_histogram(bins = 50) +
+         facet_wrap(~race_code) +
+         xlab("Age") +
+         ylab("Unique Users") +
+         theme(legend.position = "none",
+               text = element_text(size=20),
+               plot.subtitle = element_text(size = 10),
+               axis.text.x = element_text(size = 10)) +
+         scale_y_continuous(breaks=c(seq(0, 5, 1))) +
+         scale_x_continuous(breaks=c(seq(0, 90, 5))) +
+         ggtitle("Age Distribution by Race") +
+        labs(subtitle = paste0("Date: ", fresh_date))
+
+# # # Age by ethnicity
+level2_cohortview$ethnicity_code <- factor(level2_cohortview$ethnicity_code,
+                                  levels = c('not_hispanic','hispanic'))
+
+ethnicity <-
+  ggplot(data = level2_cohortview[which(level2_cohortview$ethnicity_code != "" & level2_cohortview$ethnicity_code != "no_answer"),],
+           aes(x=age, fill = ethnicity_code)) +
+    geom_histogram(bins = 50) +
+    facet_wrap(~ethnicity_code) +
+    xlab("Age") +
+    ylab("Unique Users") +
+    theme(legend.position = "none",
+          text = element_text(size=20),
+          plot.subtitle = element_text(size = 10),
+          axis.text.x = element_text(size = 10)) +
+    scale_y_continuous(breaks=c(seq(0, 5, 1))) +
+    scale_x_continuous(breaks=c(seq(0, 90, 5))) +
+    ggtitle("Age Distribution by Ethnicity") +
+    labs(subtitle = paste0("Date: ", fresh_date))
+
+
+suppressWarnings(grid.arrange(sex, ncol = 1))
+suppressWarnings(grid.arrange(race, ncol = 1))
+suppressWarnings(grid.arrange(ethnicity, ncol = 1))
+
+```
+
+## Comorbidities Reported  
+
+The figure below represents the distribution of most commonly reported comorbidities among L2 participants.
+
+```{r comorbs, echo=FALSE, results='asis', warning=FALSE}
+tmp <- cohort_view
+tmp$condition_names <- gsub('[{|}|"]', "", tmp$condition_names)
+tmp$condition_names <- gsub(' ', '\n', tmp$condition_names, perl = TRUE)
+comorbsA <- data.frame(table(unlist(as.list(strsplit(tmp$condition_names, ",")))), stringsAsFactors = FALSE)
+comorbsA <- comorbsA[which(comorbsA$Var1 != 'diabetes\ntype\n2'),]
+comorbsA <- comorbsA[order(comorbsA$Freq, decreasing = TRUE),]
+comorbsA <- comorbsA[(1:10),]
+
+suppressWarnings(
+  ggplot(comorbsA, aes(x = reorder(Var1, -Freq), y = Freq)) + 
+    geom_bar(stat = "identity") +
+    xlab(NULL) +
+    ylab(NULL) +
+    geom_label(aes(label=round(Freq, digits = 0))) +
+    theme(legend.position = "bottom",
+          legend.title = element_blank(),
+          text = element_text(size=20),
+          plot.subtitle = element_text(size = 10),
+          axis.text.x = element_text(size = 8, 
+                                     angle = 45, 
+                                     hjust = 1)) +
+    ggtitle("Top 10 Reported Comorbidities") +
+    labs(subtitle = paste0("Date: ", fresh_date))
+)
+```
+  
+# Patient Engagment Summary  
+  
+PLM website provides a number of different ways a member can be active. Members are able to interact with each other by conversing in places such as the forums and via direct messaging. Patients are also able to track their medical histories through treatment evaluation and symptom reporting.
+
+## General Web Platform Use
+
+Counts represent the number of individuals who performing the activity type within a week. The chart shows the number of unique users on the y-axis, and the specific time-frame being measured over on the x-axis.  
+
+
+```{r web_activity, fig.width = 11, fig.align = "center", echo=FALSE, results='asis'}
+# Web Activity
+
+# # # Weekly Active Users
+WAU_Level2 <- span_counter(data = activity, column = activity$session_days, new_name = "WAUs")
+session <- barplot_overtime_level2(data = WAU_Level2, x = WAU_Level2$Week, y = WAU_Level2$WAUs, title = "Weekly Active Users (Level2)", fresh_date = fresh_date)
+
+# # # Weekly DailyMe Donators
+DailyMe_Level2 <- span_counter(data = activity, column = activity$dailyme_days, new_name = "dailyme")
+dailyme <- barplot_overtime_level2(data = DailyMe_Level2, x = DailyMe_Level2$Week, y = DailyMe_Level2$dailyme, title = "Weekly DailyMe Reporters (Level2)", fresh_date = fresh_date)
+
+suppressWarnings(grid.arrange(session, dailyme, ncol = 2))
+```
+  
+## Social Activity  
+
+Counts represent the number of individuals who performing the activity type within a week. The chart shows the number of unique users on the y-axis, and the specific time-frame being measured over on the x-axis.
+  
+```{r social_activity, fig.width = 11, fig.align = "center", echo=FALSE, results='asis'}
+# Social Activity
+
+# # # Weekly Forum Posters
+ForumPost_Level2 <- span_counter(data = activity, column = activity$forum_post_days, new_name = "forum_post")
+forum_post <- barplot_overtime_level2(data = ForumPost_Level2, x = ForumPost_Level2$Week, y = ForumPost_Level2$forum_post, title = "Weekly Forum Posters (Level2)", fresh_date = fresh_date)
+
+# # # Weekly Newswire event
+Newswire_Level2 <- span_counter(data = activity, column = activity$tc_newswire_days, new_name = "newswire_count")
+newswire <- barplot_overtime_level2(data = Newswire_Level2, x = Newswire_Level2$Week, y = Newswire_Level2$newswire_count, title = "Weekly Level2 Community\nPosts and Comments", fresh_date = fresh_date)
+
+# # # P2P
+p2ps$week <- as.character(p2ps$week)
+# # # Weekly Messages
+messages <- barplot_overtime_level2(data = p2ps, x = p2ps$week, y = p2ps$total_messages_count, title = "Total Messages Sent by Level2 Participants", fresh_date = fresh_date, y_lab = "Total Messages Sent")
+# # # Weekly Follows
+follows <- barplot_overtime_level2(data = p2ps, x = p2ps$week, y = p2ps$total_follows_count, title = "Total User Follows by Level2 Participants", fresh_date = fresh_date, y_lab = "Total Follows")
+
+suppressWarnings(grid.arrange(forum_post, newswire, ncol = 2))
+suppressWarnings(grid.arrange(messages, follows, ncol = 2))
+```
+  
+## Data Donation  
+
+Counts represent the number of individuals who performing the activity type within a week. The chart shows the number of unique users on the y-axis, and the specific time-frame being measured over on the x-axis.  
+  
+```{r data_donation_activity, fig.width = 11, fig.align = "center", echo=FALSE, results='asis'}
+# Data Donation Activity
+
+# # # Weekly Symptom Reporters
+SxReport_Level2 <- span_counter(data = activity, column = activity$symptom_reports_days, new_name = "sx_report")
+sx_report <- barplot_overtime_level2(data = SxReport_Level2, x = SxReport_Level2$Week, y = SxReport_Level2$sx_report, title = "Weekly Symptom Reporters (Level2)", fresh_date = fresh_date)
+
+# # # Weekly Symptom Reporters
+TxEval_Level2 <- span_counter(data = activity, column = activity$treatment_eval_days, new_name = "tx_eval")
+tx_eval <- barplot_overtime_level2(data = TxEval_Level2, x = TxEval_Level2$Week, y = TxEval_Level2$tx_eval, title = "Weekly Treatment Evaluators (Level2)", fresh_date = fresh_date)
+
+suppressWarnings(grid.arrange(sx_report, tx_eval, ncol = 2))
+```  
+  
+# Health Tracking  
+
+This section provides an overview of patient-generated health data (PGHD) reflecting symptom experiences, treatments and treatment evaluations on micro-interventions reported as well as metrics reflecting patients health status and well-being. 
+
+```{r wrdcld_sympts, echo=FALSE, results='asis', warning=FALSE}
+
+# Symptoms
+
+#THIS NEEDS TO BE CHANGED TO CUSTOM LEVEL2 Symptom Question
+# # # # # 
+#symptomsA <- data.frame(table(most_recent_symptoms$symptom_name), stringsAsFactors = FALSE)
+#symptomsA <- symptomsA[order(symptomsA$Freq, decreasing = TRUE),]
+#symptomsA <- symptomsA[(1:10),]
+
+#ggplot(symptomsA, aes(x = reorder(Var1, -Freq), y = Freq)) + 
+#  geom_bar(stat = "identity") +
+#  xlab(NULL) +
+#  ylab(NULL) +
+#  geom_label(aes(label=round(Freq, digits = 0))) +
+#  theme(legend.position = "bottom",
+#        legend.title = element_blank(),
+#        text = element_text(size=20),
+#        plot.subtitle = element_text(size = 10),
+#        axis.text.x = element_text(size = 8, 
+#                                   angle = 45, 
+#                                   hjust = 1)) +
+#  ggtitle("Top 10 Reported Comorbidities") +
+#  labs(subtitle = paste0("Date: ", fresh_date))
+       
+```
+
+## Symptoms Tracking  
+
+These condition-specific symptoms are curated on the site and prompted for patients to complete. In addition to these promoted symptoms, patients may also report any symptom without restriction for tracking.  
+  
+```{r sx, fig.width = 11, fig.align = "center", echo=FALSE, results='asis', warning=FALSE}
+
+# feet tingling
+feet_tingling <- as.data.frame(table(most_recent_symptoms$symptom_severity_label[which(most_recent_symptoms$symptom_name == 'feet tingling')]))
+feet_tingling$symptom_name <- 'feet tingling'
+feet_tingling$percent <- feet_tingling$Freq / sum(feet_tingling$Freq)
+feet_tingling$label <- paste0(feet_tingling$symptom_name,"\n(n=",sum(feet_tingling$Freq),")")
+
+# nerve pain
+nerve_pain <- as.data.frame(table(most_recent_symptoms$symptom_severity_label[which(most_recent_symptoms$symptom_name == 'nerve pain (neuralgia)')]))
+nerve_pain$symptom_name <- 'nerve pain'
+nerve_pain$percent <- nerve_pain$Freq / sum(nerve_pain$Freq)
+nerve_pain$label <- paste0(nerve_pain$symptom_name,"\n(n=",sum(nerve_pain$Freq),")")
+
+# hands tingling
+hands_tingling <- as.data.frame(table(most_recent_symptoms$symptom_severity_label[which(most_recent_symptoms$symptom_name == 'hands tingling')]))
+hands_tingling$symptom_name <- 'hands tingling'
+hands_tingling$percent <- hands_tingling$Freq / sum(hands_tingling$Freq)
+hands_tingling$label <- paste0(hands_tingling$symptom_name,"\n(n=",sum(hands_tingling$Freq),")")
+
+# sweating
+sweating <- as.data.frame(table(most_recent_symptoms$symptom_severity_label[which(most_recent_symptoms$symptom_name == 'sweating')]))
+sweating$symptom_name <- 'sweating'
+sweating$percent <- sweating$Freq / sum(sweating$Freq)
+sweating$label <- paste0(sweating$symptom_name,"\n(n=",sum(sweating$Freq),")")
+
+# shakiness
+shakiness <- as.data.frame(table(most_recent_symptoms$symptom_severity_label[which(most_recent_symptoms$symptom_name == 'shakiness')]))
+shakiness$symptom_name <- 'shakiness'
+shakiness$percent <- shakiness$Freq / sum(shakiness$Freq)
+shakiness$label <- paste0(shakiness$symptom_name,"\n(n=",sum(shakiness$Freq),")")
+
+# blurry vision
+blurry_vision <- as.data.frame(table(most_recent_symptoms$symptom_severity_label[which(most_recent_symptoms$symptom_name == 'blurry vision')]))
+blurry_vision$symptom_name <- 'blurry vision'
+blurry_vision$percent <- blurry_vision$Freq / sum(blurry_vision$Freq)
+blurry_vision$label <- paste0(blurry_vision$symptom_name,"\n(n=",sum(blurry_vision$Freq),")")
+
+# union them
+symptoms <- rbind(feet_tingling,nerve_pain,hands_tingling,sweating,shakiness,blurry_vision)
+
+symptoms$Var1 <- factor(symptoms$Var1,
+                        levels = c('None','Mild','Moderate','Severe'))
+
+suppressWarnings(
+  ggplot(symptoms, aes(x = percent, y = label, fill = Var1)) + 
+    geom_bar(position = "fill", stat = "identity") +
+    scale_x_continuous(labels = scales::percent_format()) +
+    geom_text(aes(label=paste0(format(percent*100, digits = 2), "%")), position=position_stack(vjust=0.5)) +
+    xlab(NULL) +
+    ylab(NULL) +
+    theme(legend.position = "bottom",
+          legend.title = element_blank(),
+          text = element_text(size=20),
+          plot.subtitle = element_text(size = 10),
+          axis.text.x = element_text(size = 10)) +
+    guides(fill = guide_legend(reverse = TRUE)) +
+    ggtitle("Symptom Severity (most recent report)") +
+    labs(subtitle = paste0("Date: ", fresh_date))
+)
+
+```
+  
+## Reported Treatments
+
+The figure below represents the distribution of most commonly reported treatments among L2 participants.
+
+```{r wrdcld_tx, echo=FALSE, results='asis', warning=FALSE}
+# Treatments
+treatmentsA <- data.frame(table(treatments$treatment_name), stringsAsFactors = FALSE)
+treatmentsA <- treatmentsA[order(treatmentsA$Freq, decreasing = TRUE),]
+treatmentsA <- treatmentsA[(1:10),]
+
+suppressWarnings(
+  ggplot(treatmentsA, aes(x = reorder(Var1, -Freq), y = Freq)) + 
+    geom_bar(stat = "identity") +
+    xlab(NULL) +
+    ylab('Unique Users') +
+    scale_y_continuous(breaks=NULL) +
+    geom_label(aes(label=round(Freq, digits = 0))) +
+    theme(legend.position = "bottom",
+          legend.title = element_blank(),
+          text = element_text(size=20),
+          plot.subtitle = element_text(size = 10),
+          axis.text.x = element_text(size = 8, 
+                                     angle = 45, 
+                                     hjust = 1)) +
+    ggtitle("Top 10 Reported Treatments") +
+    labs(subtitle = paste0("Date: ", fresh_date))
+)
+```
+
+## Reported Micro-Interventions
+
+PLM platform also supports Level2 members' ability to track microinterventions. The figure below represents the distribution of most commonly reported micro-interventions among L2 participants.
+
+```{r tx, echo=FALSE, results='asis', warning=FALSE}
+micro_interv <- treatments[which(treatments$treatment_id %in% c(1386,2008,134,20363,11645,374,30048,30050,29758,30049,30051,331)),]
+micro_interv <- data.frame(table(micro_interv$treatment_name), stringsAsFactors = FALSE)
+micro_interv <- micro_interv[order(micro_interv$Freq, decreasing = TRUE),]
+micro_interv <- micro_interv[(1:10),]
+micro_interv <- micro_interv[-which(is.na(micro_interv$Var1)),]
+
+suppressWarnings(
+  ggplot(micro_interv, aes(x = reorder(Var1, -Freq), y = Freq)) + 
+    geom_bar(stat = "identity") +
+    xlab(NULL) +
+    ylab('Unique Users') +
+    scale_y_continuous(breaks=NULL) +
+    geom_label(aes(label=round(Freq, digits = 0))) +
+    theme(legend.position = "bottom",
+          legend.title = element_blank(),
+          text = element_text(size=20),
+          plot.subtitle = element_text(size = 10),
+          axis.text.x = element_text(size = 8)) +
+    ggtitle("Top Micro-Interventions") +
+    labs(subtitle = paste0("Date: ", fresh_date))
+)
+
+```
+
+## Patient Reported Treatment Evaluations
+
+Patients have the option to report treatment history on the PLM platform. There are two distinct ways in which this information is collected: after a site prompt or by organic self-report. Patients who sign-up on PLM and include their condition are prompted with a question asking if they have ever tried certain medications for that condition.  Patients are presented with a checkbox to indicate whether they have ever taken the selected treatment or not, and if yes, they may also choose to provide additional detail by reporting start date and dose, or by completing a treatment evaluation or treatment stop report at that time. In addition to this route of data capture, at any time after sign-up, patients can enter treatments and include an evaluation of that treatment to share side effects experience, burden of the treatment and  adherence. Treatment reporting is not limited to medications or drug therapies. There is no limitation on what is considered a treatment and patients report on a variety of non-drug interventions and therapeutics (e.g., keto diet, walking, acupuncture, yoga, medcal devices, supplements). 
+
+### Efficacy for Purpose (most recent report)
+
+```{r tx_eff, fig.width = 11, fig.align = "center", echo=FALSE, results='asis', warning=FALSE}
+
+# Efficacy
+eff <- tx_report_table(data = most_recent_treatments_eval, col_name = "efficacy_for_purpose_label", ordinal_labels = c("Can't tell","None","Slight","Moderate","Major"))
+# plot
+suppressWarnings(tx_eval_plot(data = eff, fresh_date = fresh_date))
+
+```
+
+### Side Effect Severity (most recent report)
+
+```{r tx_sideFX, fig.width = 11, fig.align = "center", echo=FALSE, results='asis', warning=FALSE}
+
+# Side Effects
+sideFX <- tx_report_table(data = most_recent_treatments_eval, col_name = "side_effects_label", ordinal_labels = c("None","Mild","Moderate","Severe"))
+# plot
+suppressWarnings(tx_eval_plot(data = sideFX, fresh_date = fresh_date))
+
+```
+
+### Treatment Adherence (most recent report)
+
+```{r tx_adherence, fig.width = 11, fig.align = "center", echo=FALSE, results='asis', warning=FALSE}
+
+# adherence
+adherence <- tx_report_table(data = most_recent_treatments_eval, col_name = "adherence_label", ordinal_labels = c("Never","Sometimes","Usually","Always"))
+# plot
+suppressWarnings(tx_eval_plot(data = adherence, fresh_date = fresh_date))
+
+```
+  
+### Burden of Treatment (most recent report)
+
+```{r tx_burden, fig.width = 11, fig.align = "center", echo=FALSE, results='asis', warning=FALSE}
+
+# Burden
+burden <- tx_report_table(data = most_recent_treatments_eval, col_name = "burden_label", ordinal_labels = c("Not at all","A little","Somewhat","Very"))
+# plot
+suppressWarnings(tx_eval_plot(data = burden, fresh_date = fresh_date))
+
+```
+
+## MonthlyMe  
+
+Given patients current status how are they doing? This section provides a look into patients health status, health-related quality of life for key metrics centered on connectdness to others, taking charge of one's health, motivation to stick to goals as well as patient perceptions on blood glucose health outcomes. 
+
+Further analyses can evaluate associations between patient engagement levels and patient disease management, motivation and well-being cross-sectionally and over time. 
+
+```{r mm, echo=FALSE, results='asis', warning=FALSE}
+# health overall
+health_overall <- as.data.frame(table(cohort_view$most_recent_health_overall_rating_label))
+health_overall$label <- "Over the last month, how has your health been?"
+health_overall$percent <- health_overall$Freq / sum(health_overall$Freq)
+health_overall$Var1 <- factor(health_overall$Var1,
+                              levels = c("Poor","Fair","Good","Very Good", "Excellent"))
+# health change
+health_change <- as.data.frame(table(cohort_view$most_recent_health_change_rating_label))
+health_change$label <- "Over the last month, how has your health changed?"
+health_change$percent <- health_change$Freq / sum(health_change$Freq)
+health_change$Var1 <- factor(health_change$Var1,
+                             levels = c("Much worse","Worse","A little worse","About the same","A little better","Better","Much better"))
+# connectedness
+connectedness <- as.data.frame(table(cohort_view$most_recent_connected_to_others_rating_label))
+connectedness$label <- "Over the last month, how often did you feel connected to others?"
+connectedness$percent <- connectedness$Freq / sum(connectedness$Freq)
+connectedness$Var1 <- factor(connectedness$Var1,
+                             levels = c("None of the time","Some of the time","Most of the time","All of the time"))
+# take charge
+take_charge <- as.data.frame(table(cohort_view$most_recent_take_charge_rating_label))
+take_charge$label <- "Over the last month, how often did you feel able to take charge of your health?"
+take_charge$percent <- take_charge$Freq / sum(take_charge$Freq)
+take_charge$Var1 <- factor(take_charge$Var1,
+                           levels = c("None of the time","Some of the time","Most of the time","All of the time"))
+
+# live life
+live_life <- as.data.frame(table(cohort_view$most_recent_live_life_rating_label))
+live_life$label <- "Over the last month, how often did you feel able to live the life you wanted?"
+live_life$percent <- live_life$Freq / sum(live_life$Freq)
+live_life$Var1 <- factor(live_life$Var1,
+                         levels = c("None of the time","Some of the time","Most of the time","All of the time"))
+
+# glucose
+glucose <- as.data.frame(table(cohort_view$most_recent_glucose_control_rating_label))
+glucose$label <- "Over the last month, how often did you feel able to live the life you wanted?"
+glucose$percent <- glucose$Freq / sum(glucose$Freq)
+glucose$Var1 <- factor(glucose$Var1,
+                       levels = c("Poorly","Fairly well","Very well","Extremely well"))
+
+# health goals
+health_goals <- as.data.frame(table(cohort_view$most_recent_health_goals_rating_label))
+health_goals$label <- "Over the last month, how often did you feel able to live the life you wanted?"
+health_goals$percent <- health_goals$Freq / sum(health_goals$Freq)
+health_goals$Var1 <- factor(health_goals$Var1,
+                            levels = c("None of the time","Some of the time","Most of the time","All of the time"))
+
+```
+   
+### Over the last month, how has your health been? (most recent report: n=`r sum(health_overall$Freq)`)
+
+```{r health_overall, echo=FALSE, results='asis', warning=FALSE}
+suppressWarnings(thrive_bar_plot(data = health_overall, x = health_overall$Var1, y = health_overall$percent, title = NULL, fresh_date = fresh_date))
+```
+
+### Over the last month, how has your health changed? (most recent report: n=`r sum(health_change$Freq)`)
+
+```{r health_change, echo=FALSE, results='asis', warning=FALSE}
+suppressWarnings(thrive_bar_plot(data = health_change, x = health_change$Var1, y = health_change$percent, title = NULL, fresh_date = fresh_date))
+```
+
+### Over the last month, how often did you feel connected to others? (most recent report: n=`r sum(connectedness$Freq)`)
+
+```{r connectedness, echo=FALSE, results='asis', warning=FALSE}
+suppressWarnings(thrive_bar_plot(data = connectedness, x = connectedness$Var1, y = connectedness$percent, title = NULL, fresh_date = fresh_date))
+```
+
+### Over the last month, how often did you feel able to take charge of your health? (most recent report: n=`r sum(take_charge$Freq)`)
+
+```{r take_charge, echo=FALSE, results='asis', warning=FALSE}
+suppressWarnings(thrive_bar_plot(data = take_charge, x = take_charge$Var1, y = take_charge$percent, title = NULL, fresh_date = fresh_date))
+```
+
+### Over the last month, how often did you feel able to live the life you wanted? (most recent report: n=`r sum(live_life$Freq)`)
+
+```{r live_life, echo=FALSE, results='asis', warning=FALSE}
+suppressWarnings(thrive_bar_plot(data = live_life, x = live_life$Var1, y = live_life$percent, title = NULL, fresh_date = fresh_date))
+```
+
+## Level Custom T2D Questions
+Two additional MonthlyMe questions were made available to the Level2 community:
+
+### Over the last month how well could you keep your blood glucose within your target range? (most recent report: n=`r sum(glucose$Freq)`)
+
+```{r glucose, echo=FALSE, results='asis', warning=FALSE}
+suppressWarnings(thrive_bar_plot(data = glucose, x = glucose$Var1, y = glucose$percent, title = NULL, fresh_date = fresh_date))
+```
+
+### Over the last month how often did you feel you were able to stick with your health goals? (most recent report: n=`r sum(health_goals$Freq)`)
+
+```{r health_goals, echo=FALSE, results='asis', warning=FALSE}
+suppressWarnings(thrive_bar_plot(data = health_goals, x = health_goals$Var1, y = health_goals$percent, title = NULL, fresh_date = fresh_date))
+```
